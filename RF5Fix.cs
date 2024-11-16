@@ -4,704 +4,216 @@ using BepInEx.Unity.IL2CPP;
 using BepInEx.Logging;
 using HarmonyLib;
 
-using System;
-using System.Collections.Generic;
-
 using UnityEngine;
-using UnityEngine.SceneManagement;
-using UnityEngine.UI;
 
-namespace RF5Fix
+namespace RF5Fix;
+
+[BepInPlugin(PLUGIN_GUID, PLUGIN_NAME, PLUGIN_VERSION)]
+[BepInProcess(GAME_PROCESS)]
+public partial class RF5Fix : BasePlugin
 {
-    [BepInPlugin(PLUGIN_GUID, PLUGIN_NAME, PLUGIN_VERSION)]
-    [BepInProcess(GAME_PROCESS)]
-    public class RF5 : BasePlugin
+    // For some reason, we have to do it this way, because BepInEx cries about the GUID relative to the version name (For example: Skipping [RF5Fix 0.1.4] because a newer version exists (RF5Fix 0.1.4)). Changing the GUID messes with the config file name.
+    #region PluginInfo
+    private const string PLUGIN_GUID = "RF5Fix";
+    private const string PLUGIN_NAME = "RF5Fix";
+    private const string PLUGIN_VERSION = "0.1.5";
+    private const string GAME_PROCESS = "Rune Factory 5.exe";
+    #endregion
+
+    internal static new ManualLogSource Log = BepInEx.Logging.Logger.CreateLogSource("RF5Fix");
+
+    public static ConfigEntry<bool> bUltrawideFixes;
+    public static ConfigEntry<bool> bIntroSkip;
+    public static ConfigEntry<bool> bLetterboxing;
+    public static ConfigEntry<bool> bCampRenderTextureFix;
+    public static ConfigEntry<bool> bDisableCrossHatching;
+    public static ConfigEntry<bool> bFOVAdjust;
+    public static ConfigEntry<float> fAdditionalFOV;
+    public static ConfigEntry<float> fUpdateRate;
+    public static ConfigEntry<bool> bMouseSensitivity;
+    public static ConfigEntry<int> iMouseSensitivity;
+    public static ConfigEntry<int> iAnisotropicFiltering;
+    public static ConfigEntry<int> iShadowResolution;
+    public static ConfigEntry<float> fLODBias;
+    public static ConfigEntry<float> fNPCDistance;
+    public static ConfigEntry<int> iShadowCascades;
+    public static ConfigEntry<float> fShadowDistance;
+    public static ConfigEntry<bool> bCustomResolution;
+    public static ConfigEntry<float> fDesiredResolutionX;
+    public static ConfigEntry<float> fDesiredResolutionY;
+    public static ConfigEntry<int> iWindowMode;
+    public static ConfigEntry<bool> bControllerType;
+    public static ConfigEntry<string> sControllerType;
+
+    public override void Load()
     {
-        // For some reason, we have to do it this way, because BepInEx cries about the GUID relative to the version name (For example: Skipping [RF5Fix 0.1.4] because a newer version exists (RF5Fix 0.1.4)). Changing the GUID messes with the config file name.
-        #region PluginInfo
-        private const string PLUGIN_GUID = "RF5Fix";
-        private const string PLUGIN_NAME = "RF5Fix";
-        private const string PLUGIN_VERSION = "0.1.5";
-        private const string GAME_PROCESS = "Rune Factory 5.exe";
-        #endregion
+        // Plugin startup logic
+        Log = base.Log;
+        Log.LogInfo($"Plugin {PLUGIN_NAME} is loaded!");
 
-        internal static new ManualLogSource Log;
+        // Features
+        bUltrawideFixes = Config.Bind("Ultrawide UI Fixes",
+                            "UltrawideFixes",
+                            true,
+                            "Set to true to enable ultrawide UI fixes.");
 
-        public static ConfigEntry<bool> bUltrawideFixes;
-        public static ConfigEntry<bool> bIntroSkip;
-        public static ConfigEntry<bool> bLetterboxing;
-        public static ConfigEntry<bool> bCampRenderTextureFix;
-        public static ConfigEntry<bool> bDisableCrossHatching;
-        public static ConfigEntry<bool> bFOVAdjust;
-        public static ConfigEntry<float> fAdditionalFOV;
-        public static ConfigEntry<float> fUpdateRate;
-        public static ConfigEntry<bool> bMouseSensitivity;
-        public static ConfigEntry<int> iMouseSensitivity;
-        public static ConfigEntry<int> iAnisotropicFiltering;
-        public static ConfigEntry<int> iShadowResolution;
-        public static ConfigEntry<float> fLODBias;
-        public static ConfigEntry<float> fNPCDistance;
-        public static ConfigEntry<int> iShadowCascades;
-        public static ConfigEntry<float> fShadowDistance;
-        public static ConfigEntry<bool> bCustomResolution;
-        public static ConfigEntry<float> fDesiredResolutionX;
-        public static ConfigEntry<float> fDesiredResolutionY;
-        public static ConfigEntry<int> iWindowMode;
-        public static ConfigEntry<bool> bControllerType;
-        public static ConfigEntry<string> sControllerType;
+        bLetterboxing = Config.Bind("Ultrawide UI Fixes",
+                            "Letterboxing",
+                             true,
+                            "Letterboxes UI (not gameplay). Set to false to disable letterboxing everywhere.");
 
-        public override void Load()
+        fUpdateRate = Config.Bind("General",
+                            "PhysicsUpdateRate",
+                            (float)0f, // 0 = Auto (Set to refresh rate) || Default = 50
+                            new ConfigDescription("Set desired update rate. This will improve camera smoothness in particular. \n0 = Auto (Set to refresh rate). Game default = 50",
+                            new AcceptableValueRange<float>(0f, 5000f)));
+
+        bIntroSkip = Config.Bind("General",
+                            "IntroSkip",
+                             true,
+                            "Skip intro logos.");
+
+        bCampRenderTextureFix = Config.Bind("General",
+                           "LowResMenuFix",
+                            true,
+                           "Fixes low-resolution 3D models in the equip menu/3D model viewer.");
+
+        bDisableCrossHatching = Config.Bind("General",
+                           "DisableCrossHatching",
+                            false,
+                           "Set to true to disable the crosshatch/sketch effect.");
+
+        // Game Overrides
+        bFOVAdjust = Config.Bind("FOV Adjustment",
+                            "FOVAdjustment",
+                            true, // True by default to enable Vert+ for narrow aspect ratios.
+                            "Set to true to enable adjustment of the FOV. \nIt will also adjust the FOV to be Vert+ if your aspect ratio is narrower than 16:9.");
+
+        fAdditionalFOV = Config.Bind("FOV Adjustment",
+                            "AdditionalFOV.Value",
+                            (float)0f,
+                            new ConfigDescription("Set additional FOV in degrees. This does not adjust FOV in cutscenes.",
+                            new AcceptableValueRange<float>(0f, 180f)));
+
+        bMouseSensitivity = Config.Bind("Mouse Sensitivity",
+                            "MouseSensitivity.Override",
+                            false, // Disable by default.
+                            "Set to true to enable mouse sensitivity override.");
+
+        iMouseSensitivity = Config.Bind("Mouse Sensitivity",
+                            "MouseSensitivity.Value",
+                            (int)100, // Default = 100
+                            new ConfigDescription("Set desired mouse sensitivity.",
+                            new AcceptableValueRange<int>(1, 9999)));
+
+        bControllerType = Config.Bind("Controller Icon Override",
+                            "ControllerType.Override",
+                            false, // Disable by default.
+                            "Set to true to enable controller icon override.");
+
+        sControllerType = Config.Bind("Controller Icon Override",
+                            "ControllerType",
+                            "Xbox",
+                            new ConfigDescription("Set desired controller icon type.",
+                            new AcceptableValueList<string>("Xbox", "PS4", "PS5", "Switch"))); // Others are broken/invalid
+
+        // Custom Resolution
+        bCustomResolution = Config.Bind("Set Custom Resolution",
+                            "CustomResolution",
+                             false, // Disable by default as launcher should suffice.
+                            "Set to true to enable the custom resolution below.");
+
+        fDesiredResolutionX = Config.Bind("Set Custom Resolution",
+                            "ResolutionWidth",
+                            (float)Display.main.systemWidth, // Set default to display width so we don't leave an unsupported resolution as default.
+                            "Set desired resolution width.");
+
+        fDesiredResolutionY = Config.Bind("Set Custom Resolution",
+                            "ResolutionHeight",
+                            (float)Display.main.systemHeight, // Set default to display height so we don't leave an unsupported resolution as default.
+                            "Set desired resolution height.");
+
+        iWindowMode = Config.Bind("Set Custom Resolution",
+                            "WindowMode",
+                             (int)1,
+                            new ConfigDescription("Set window mode. 1 = Fullscreen, 2 = Borderless, 3 = Windowed.",
+                            new AcceptableValueRange<int>(1, 3)));
+
+        // Graphical Settings
+        iAnisotropicFiltering = Config.Bind("Graphical Tweaks",
+                            "AnisotropicFiltering.Value",
+                            (int)1,
+                            new ConfigDescription("Set Anisotropic Filtering level. 16 is recommended for quality.",
+                            new AcceptableValueRange<int>(1, 16)));
+
+        fLODBias = Config.Bind("Graphical Tweaks",
+                            "LODBias.Value",
+                            (float)1.5f, // Default = 1.5f
+                            new ConfigDescription("Set LOD Bias. Controls distance for level of detail switching. 4 is recommended for quality.",
+                            new AcceptableValueRange<float>(0.1f, 10f)));
+
+        fNPCDistance = Config.Bind("Graphical Tweaks",
+                            "NPCDistance.Value",
+                            (float)2025f, // Default = 2025f (High)
+                            new ConfigDescription("Set NPC Draw Distance. Controls distance at which NPCs render. 10000 is recommended for quality.",
+                            new AcceptableValueRange<float>(1f, 100000f)));
+
+
+        iShadowResolution = Config.Bind("Graphical Tweaks",
+                            "ShadowResolution.Value",
+                            (int)4096, // Default = Very High (4096)
+                            new ConfigDescription("Set Shadow Resolution. 4096 is recommended for quality.",
+                            new AcceptableValueRange<int>(64, 32768)));
+
+        iShadowCascades = Config.Bind("Graphical Tweaks",
+                            "ShadowCascades.Value",
+                            (int)1, // Default = 1
+                            new ConfigDescription("Set number of Shadow Cascades. 4 is recommended for quality but 2 is decent.",
+                            new AcceptableValueList<int>(1, 2, 4)));
+
+        fShadowDistance = Config.Bind("Graphical Tweaks",
+                            "ShadowDistance.Value",
+                            (float)120f, // Default = 120
+                            new ConfigDescription("Set Shadow Distance. Controls distance at which shadows render. 180 is recommended for quality.",
+                            new AcceptableValueRange<float>(1f, 999f)));
+
+        // Run CustomResolutionPatch
+        if (bCustomResolution.Value)
         {
-            // Plugin startup logic
-            Log = base.Log;
-            Log.LogInfo($"Plugin {PLUGIN_NAME} is loaded!");
-
-            // Features
-            bUltrawideFixes = Config.Bind("Ultrawide UI Fixes",
-                                "UltrawideFixes",
-                                true,
-                                "Set to true to enable ultrawide UI fixes.");
-
-            bLetterboxing = Config.Bind("Ultrawide UI Fixes",
-                                "Letterboxing",
-                                 true,
-                                "Letterboxes UI (not gameplay). Set to false to disable letterboxing everywhere.");
-
-            fUpdateRate = Config.Bind("General",
-                                "PhysicsUpdateRate",
-                                (float)0f, // 0 = Auto (Set to refresh rate) || Default = 50
-                                new ConfigDescription("Set desired update rate. This will improve camera smoothness in particular. \n0 = Auto (Set to refresh rate). Game default = 50",
-                                new AcceptableValueRange<float>(0f, 5000f)));
-
-            bIntroSkip = Config.Bind("General",
-                                "IntroSkip",
-                                 true,
-                                "Skip intro logos.");
-
-            bCampRenderTextureFix = Config.Bind("General",
-                               "LowResMenuFix",
-                                true,
-                               "Fixes low-resolution 3D models in the equip menu/3D model viewer.");
-
-            bDisableCrossHatching = Config.Bind("General",
-                               "DisableCrossHatching",
-                                false,
-                               "Set to true to disable the crosshatch/sketch effect.");
-
-            // Game Overrides
-            bFOVAdjust = Config.Bind("FOV Adjustment",
-                                "FOVAdjustment",
-                                true, // True by default to enable Vert+ for narrow aspect ratios.
-                                "Set to true to enable adjustment of the FOV. \nIt will also adjust the FOV to be Vert+ if your aspect ratio is narrower than 16:9.");
-
-            fAdditionalFOV = Config.Bind("FOV Adjustment",
-                                "AdditionalFOV.Value",
-                                (float)0f,
-                                new ConfigDescription("Set additional FOV in degrees. This does not adjust FOV in cutscenes.",
-                                new AcceptableValueRange<float>(0f, 180f)));
-
-            bMouseSensitivity = Config.Bind("Mouse Sensitivity",
-                                "MouseSensitivity.Override",
-                                false, // Disable by default.
-                                "Set to true to enable mouse sensitivity override.");
-
-            iMouseSensitivity = Config.Bind("Mouse Sensitivity",
-                                "MouseSensitivity.Value",
-                                (int)100, // Default = 100
-                                new ConfigDescription("Set desired mouse sensitivity.",
-                                new AcceptableValueRange<int>(1, 9999)));
-
-            bControllerType = Config.Bind("Controller Icon Override",
-                                "ControllerType.Override",
-                                false, // Disable by default.
-                                "Set to true to enable controller icon override.");
-
-            sControllerType = Config.Bind("Controller Icon Override",
-                                "ControllerType",
-                                "Xbox",
-                                new ConfigDescription("Set desired controller icon type.",
-                                new AcceptableValueList<string>("Xbox", "PS4", "PS5", "Switch"))); // Others are broken/invalid
-
-            // Custom Resolution
-            bCustomResolution = Config.Bind("Set Custom Resolution",
-                                "CustomResolution",
-                                 false, // Disable by default as launcher should suffice.
-                                "Set to true to enable the custom resolution below.");
-
-            fDesiredResolutionX = Config.Bind("Set Custom Resolution",
-                                "ResolutionWidth",
-                                (float)Display.main.systemWidth, // Set default to display width so we don't leave an unsupported resolution as default.
-                                "Set desired resolution width.");
-
-            fDesiredResolutionY = Config.Bind("Set Custom Resolution",
-                                "ResolutionHeight",
-                                (float)Display.main.systemHeight, // Set default to display height so we don't leave an unsupported resolution as default.
-                                "Set desired resolution height.");
-
-            iWindowMode = Config.Bind("Set Custom Resolution",
-                                "WindowMode",
-                                 (int)1,
-                                new ConfigDescription("Set window mode. 1 = Fullscreen, 2 = Borderless, 3 = Windowed.",
-                                new AcceptableValueRange<int>(1, 3)));
-
-            // Graphical Settings
-            iAnisotropicFiltering = Config.Bind("Graphical Tweaks",
-                                "AnisotropicFiltering.Value",
-                                (int)1,
-                                new ConfigDescription("Set Anisotropic Filtering level. 16 is recommended for quality.",
-                                new AcceptableValueRange<int>(1, 16)));
-
-            fLODBias = Config.Bind("Graphical Tweaks",
-                                "LODBias.Value",
-                                (float)1.5f, // Default = 1.5f
-                                new ConfigDescription("Set LOD Bias. Controls distance for level of detail switching. 4 is recommended for quality.",
-                                new AcceptableValueRange<float>(0.1f, 10f)));
-
-            fNPCDistance = Config.Bind("Graphical Tweaks",
-                                "NPCDistance.Value",
-                                (float)2025f, // Default = 2025f (High)
-                                new ConfigDescription("Set NPC Draw Distance. Controls distance at which NPCs render. 10000 is recommended for quality.",
-                                new AcceptableValueRange<float>(1f, 100000f)));
-
-
-            iShadowResolution = Config.Bind("Graphical Tweaks",
-                                "ShadowResolution.Value",
-                                (int)4096, // Default = Very High (4096)
-                                new ConfigDescription("Set Shadow Resolution. 4096 is recommended for quality.",
-                                new AcceptableValueRange<int>(64, 32768)));
-
-            iShadowCascades = Config.Bind("Graphical Tweaks",
-                                "ShadowCascades.Value",
-                                (int)1, // Default = 1
-                                new ConfigDescription("Set number of Shadow Cascades. 4 is recommended for quality but 2 is decent.",
-                                new AcceptableValueList<int>(1, 2, 4)));
-
-            fShadowDistance = Config.Bind("Graphical Tweaks",
-                                "ShadowDistance.Value",
-                                (float)120f, // Default = 120
-                                new ConfigDescription("Set Shadow Distance. Controls distance at which shadows render. 180 is recommended for quality.",
-                                new AcceptableValueRange<float>(1f, 999f)));
-
-            // Run CustomResolutionPatch
-            if (bCustomResolution.Value)
-            {
-                Harmony.CreateAndPatchAll(typeof(CustomResolutionPatch));
-            }
-
-            // Run UltrawidePatches
-            if (bUltrawideFixes.Value)
-            {
-                Harmony.CreateAndPatchAll(typeof(UltrawidePatches));
-            }
-
-            // Run LetterboxingPatch
-            if (bLetterboxing.Value)
-            {
-                Harmony.CreateAndPatchAll(typeof(LetterboxingPatch));
-            }
-
-            // Run IntroSkipPatch
-            if (bIntroSkip.Value)
-            {
-                Harmony.CreateAndPatchAll(typeof(IntroSkipPatch));
-            }
-
-            // Run FOVPatch
-            if (bFOVAdjust.Value)
-            {
-                Harmony.CreateAndPatchAll(typeof(FOVPatch));
-            }
-
-            // Run ControllerPatch
-            if (bControllerType.Value)
-            {
-                Harmony.CreateAndPatchAll(typeof(ControllerPatch));
-            }
-
-            // Run MiscellaneousPatch
-            Harmony.CreateAndPatchAll(typeof(MiscellaneousPatch));
-
+            Harmony.CreateAndPatchAll(typeof(CustomResolutionPatch));
         }
 
-        [HarmonyPatch]
-        public class UltrawidePatches
+        // Run UltrawidePatches
+        if (bUltrawideFixes.Value)
         {
-            public static float DefaultAspectRatio = (float)16 / 9;
-            public static float NewAspectRatio = (float)Screen.width / Screen.height;
-            public static float AspectMultiplier = NewAspectRatio / DefaultAspectRatio;
-            public static float AspectDivider = DefaultAspectRatio / NewAspectRatio;
-
-            // Set screen match mode when object has canvasscaler enabled
-            [HarmonyPatch(typeof(CanvasScaler), nameof(CanvasScaler.OnEnable))]
-            [HarmonyPostfix]
-            public static void SetScreenMatchMode(CanvasScaler __instance)
-            {
-                if (NewAspectRatio > DefaultAspectRatio || NewAspectRatio < DefaultAspectRatio)
-                {
-                    __instance.m_ScreenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
-                }
-            }
-
-            // ViewportRect
-            [HarmonyPatch(typeof(ViewportRectController), nameof(ViewportRectController.OnEnable))]
-            [HarmonyPatch(typeof(ViewportRectController), nameof(ViewportRectController.ResetRect))]
-            [HarmonyPostfix]
-            public static void ViewportRectDisable(ViewportRectController __instance)
-            {
-                __instance.m_Camera.rect = new Rect(0f, 0f, 1f, 1f);
-                Log.LogInfo($"Camera viewport rect patched.");
-            }
-
-            // Letterbox
-            [HarmonyPatch(typeof(LetterBoxController), nameof(LetterBoxController.OnEnable))]
-            [HarmonyPostfix]
-            public static void LetterboxDisable(LetterBoxController __instance)
-            {
-                if (bLetterboxing.Value)
-                {
-                    // Do nothing if UI letterboxing is enabled
-                }
-                else
-                {
-                    // If letterboxing is disabled
-                    __instance.transform.parent.gameObject.SetActive(false);
-                    Log.LogInfo("Letterboxing disabled. For good.");
-                }
-            }
-
-            // Span UI fade to black
-            [HarmonyPatch(typeof(UIFadeScreen), nameof(UIFadeScreen.ScreenFade))]
-            [HarmonyPostfix]
-            public static void UIFadeScreenFix(UIFadeScreen __instance)
-            {
-                if (NewAspectRatio < DefaultAspectRatio)
-                {
-                    // Increase height to scale correctly
-                    __instance.BlackOutPanel.transform.localScale = new Vector3(1f, 1 * AspectDivider, 1f);
-                }
-                else if (NewAspectRatio > DefaultAspectRatio)
-                {
-                    // Increase width to scale correctly
-                    __instance.BlackOutPanel.transform.localScale = new Vector3(1 * AspectMultiplier, 1f, 1f);
-                }
-            }
-
-            // Span UI load fade
-            // Can't find a better way to hook this. It shouldn't impact performance much and even if it does it's only during UI loading fades.
-            [HarmonyPatch(typeof(UILoaderFade), nameof(UILoaderFade.Update))]
-            [HarmonyPostfix]
-            public static void UILoaderFadeFix(UILoaderFade __instance)
-            {
-                if (NewAspectRatio < DefaultAspectRatio)
-                {
-                    // Increase height to scale correctly
-                    __instance.gameObject.transform.localScale = new Vector3(1f, 1 * AspectDivider, 1f);
-                }
-                else if (NewAspectRatio > DefaultAspectRatio)
-                {
-                    // Increase width to scale correctly
-                    __instance.gameObject.transform.localScale = new Vector3(1 * AspectMultiplier, 1f, 1f);
-                }
-            }
-
+            Harmony.CreateAndPatchAll(typeof(UltrawidePatches));
         }
 
-        [HarmonyPatch]
-        public class LetterboxingPatch
+        // Run LetterboxingPatch
+        if (bLetterboxing.Value)
         {
-            public static GameObject letterboxing;
-
-            // Letterbox
-            [HarmonyPatch(typeof(LetterBoxController), nameof(LetterBoxController.OnEnable))]
-            [HarmonyPostfix]
-            public static void LetterboxAssign(LetterBoxController __instance)
-            {
-                letterboxing = __instance.transform.parent.gameObject;
-                Log.LogInfo($"Letterboxing assigned.");
-            }
-
-            // Enable Letterboxing
-            [HarmonyPatch(typeof(CampMenuMain), nameof(CampMenuMain.StartCamp))] // Camp menu
-            [HarmonyPatch(typeof(UILoader), nameof(UILoader.OpenCanvas))] // UILoader - Map, Calendar, Task Board, Movie Player, Shop etc
-            [HarmonyPostfix]
-            public static void EnableLetterboxing()
-            {
-                letterboxing.SetActive(true);
-                Log.LogInfo("Enabled UI letterboxing.");
-            }
-
-            // Disable Letterboxing
-            [HarmonyPatch(typeof(GameMain), nameof(GameMain.FieldLoadStart))] // Load game
-            [HarmonyPatch(typeof(CampMenuMain), nameof(CampMenuMain.CloseCamp))] // Camp menu
-            [HarmonyPatch(typeof(UILoader), nameof(UILoader.DoCloseCanvas))] // UILoader - Map, Calendar, Task Board, Movie Player, Shop etc
-            [HarmonyPostfix]
-            public static void DisableLetterboxing()
-            {
-                letterboxing.SetActive(false);
-                Log.LogInfo("Disabled UI letterboxing.");
-            }
+            Harmony.CreateAndPatchAll(typeof(LetterboxingPatch));
         }
 
-        [HarmonyPatch]
-        public class IntroSkipPatch
+        // Run IntroSkipPatch
+        if (bIntroSkip.Value)
         {
-            // TitleMenu Skip
-            // Should be okay using the update method as it's only in the title menu and shouldn't tank performance.
-            [HarmonyPatch(typeof(TitleMenu), nameof(TitleMenu.Update))]
-            [HarmonyPostfix]
-            public static void GetTitleState(TitleMenu __instance)
-            {
-                if (__instance.m_mode == TitleMenu.MODE.INIT_OP)
-                {
-                    __instance.m_mode = TitleMenu.MODE.INIT_END_OP;
-                    Log.LogInfo($"Title state = {__instance.m_mode}. Skipping.");
-                }
-
-                if (__instance.m_mode == TitleMenu.MODE.SHOW_SYSTEM_INFOAUTOSAVE)
-                {
-                    Log.LogInfo($"Title state = {__instance.m_mode}. Skipping.");
-                    __instance.m_mode = TitleMenu.MODE.END_SYSTEM;
-                }
-            }
-
-            // Intro logos skip
-            [HarmonyPatch(typeof(UILogoControl), nameof(UILogoControl.Start))]
-            [HarmonyPostfix]
-            public static void SkipIntroLogos(UILogoControl __instance)
-            {
-                __instance.m_mode = UILogoControl.MODE.END;
-                Log.LogInfo("Skipped intro logos.");
-            }
+            Harmony.CreateAndPatchAll(typeof(IntroSkipPatch));
         }
 
-        [HarmonyPatch]
-        public class FOVPatch
+        // Run FOVPatch
+        if (bFOVAdjust.Value)
         {
-            public static float NewAspectRatio = (float)Screen.width / Screen.height;
-            public static float DefaultAspectRatio = (float)16 / 9;
-            
-            public static bool farmFOVHasRun = false;
-            public static bool trackingFOVHasRun = false;
-
-            // Adjust tracking camera FOV
-            // Indoor, outdoor, dungeon
-            [HarmonyPatch(typeof(PlayerTrackingCamera), nameof(PlayerTrackingCamera.Start))]
-            [HarmonyPostfix]
-            public static void TrackingFOV(PlayerTrackingCamera __instance)
-            {
-                // Only run this once
-                if (!trackingFOVHasRun)
-                {
-                    var InDoor = __instance.GetSetting(Define.TrackinCameraType.InDoor);
-                    var OutDoor = __instance.GetSetting(Define.TrackinCameraType.OutDoor);
-                    var Dangeon = __instance.GetSetting(Define.TrackinCameraType.Dangeon);
-
-                    Log.LogInfo($"Tracking Camera. Current InDoor FOV = {InDoor.minFov}. Current OutDoor FOV = {OutDoor.minFov}. Current Dangeon FOV = {Dangeon.minFov}");
-
-                    // Vert+ FOV
-                    if (NewAspectRatio < DefaultAspectRatio)
-                    {
-                        float newInDoorFOV = Mathf.Floor(Mathf.Atan(Mathf.Tan(InDoor.minFov * Mathf.PI / 360) / NewAspectRatio * DefaultAspectRatio) * 360 / Mathf.PI);
-                        float newOutDoorFOV = Mathf.Floor(Mathf.Atan(Mathf.Tan(OutDoor.minFov * Mathf.PI / 360) / NewAspectRatio * DefaultAspectRatio) * 360 / Mathf.PI);
-                        float newDangeonFOV = Mathf.Floor(Mathf.Atan(Mathf.Tan(Dangeon.minFov * Mathf.PI / 360) / NewAspectRatio * DefaultAspectRatio) * 360 / Mathf.PI);
-
-                        InDoor.minFov = newInDoorFOV;
-                        OutDoor.minFov = newOutDoorFOV;
-                        Dangeon.minFov = newDangeonFOV;
-
-                    }
-                    // Add FOV
-                    if (fAdditionalFOV.Value > 0f)
-                    {
-                        InDoor.minFov += fAdditionalFOV.Value;
-                        OutDoor.minFov += fAdditionalFOV.Value;
-                        Dangeon.minFov += fAdditionalFOV.Value;
-                    }
-
-                    Log.LogInfo($"Tracking Camera: New InDoor FOV = {InDoor.minFov}. New OutDoor FOV = {OutDoor.minFov}. New Dangeon FOV = {Dangeon.minFov}");
-                    trackingFOVHasRun = true;
-                }
-            }
-
-
-            // Farming FOV
-            [HarmonyPatch(typeof(PlayerFarmingCamera), nameof(PlayerFarmingCamera.Awake))]
-            [HarmonyPrefix]
-            public static void FarmingFOV(PlayerFarmingCamera __instance)
-            {
-                // Only run this once
-                if (!farmFOVHasRun)
-                {
-                    var battleInst = BattleConst.Instance;
-                    Log.LogInfo($"PlayerFarmingCamera: Current FOV = {battleInst.FarmCamera_FOV}.");
-
-                    // Vert+ FOV
-                    if (NewAspectRatio < DefaultAspectRatio)
-                    {
-                        float newFOV = Mathf.Floor(Mathf.Atan(Mathf.Tan(battleInst.FarmCamera_FOV * Mathf.PI / 360) / NewAspectRatio * DefaultAspectRatio) * 360 / Mathf.PI);
-                        battleInst.FarmCamera_FOV = newFOV;
-
-                    }
-                    // Add FOV
-                    if (fAdditionalFOV.Value > 0f)
-                    {
-                        battleInst.FarmCamera_FOV += fAdditionalFOV.Value;
-                    }
-
-                    Log.LogInfo($"PlayerFarmingCamera: New FOV = {battleInst.FarmCamera_FOV}.");
-                    farmFOVHasRun = true;
-                }
-            }
-
-            // FOV adjustment for every camera
-            // Does not effect tracking camera and farm camera, maybe more. They are forced to a specific FOV
-            // Adjust to Vert+ at narrower than 16:9
-            [HarmonyPatch(typeof(Cinemachine.CinemachineVirtualCamera), nameof(Cinemachine.CinemachineVirtualCamera.OnEnable))]
-            [HarmonyPostfix]
-            public static void GlobalFOV(Cinemachine.CinemachineVirtualCamera __instance)
-            {
-                var currLens = __instance.m_Lens;
-                var currFOV = currLens.FieldOfView;
-
-                Log.LogInfo($"Cinemachine VCam: Current camera name = {__instance.name}.");
-                Log.LogInfo($"Cinemachine VCam: Current camera FOV = {currFOV}.");
-
-                // Vert+ FOV
-                if (NewAspectRatio < DefaultAspectRatio)
-                {
-                    float newFOV = Mathf.Floor(Mathf.Atan(Mathf.Tan(currFOV * Mathf.PI / 360) / NewAspectRatio * DefaultAspectRatio) * 360 / Mathf.PI);
-                    currLens.FieldOfView = Mathf.Clamp(newFOV, 1f, 180f);
-                }
-                // Add FOV for everything but cutscenes
-                if (fAdditionalFOV.Value > 0f && __instance.name != "CMvcamCutBuffer" && __instance.name != "CMvcamShortPlay")
-                {
-                    currLens.FieldOfView += fAdditionalFOV.Value;
-                    Log.LogInfo($"Cinemachine VCam: Cam name = {__instance.name}. Added gameplay FOV = {fAdditionalFOV.Value}.");
-                }
-
-                __instance.m_Lens = currLens;
-                Log.LogInfo($"Cinemachine VCam: New camera FOV = {__instance.m_Lens.FieldOfView}.");
-            }
+            Harmony.CreateAndPatchAll(typeof(FOVPatch));
         }
 
-        [HarmonyPatch]
-        public class CustomResolutionPatch
+        // Run ControllerPatch
+        if (bControllerType.Value)
         {
-            [HarmonyPatch(typeof(ScreenUtil), nameof(ScreenUtil.SetResolution), new Type[] { typeof(int), typeof(int), typeof(BootOption.WindowMode) })]
-            [HarmonyPrefix]
-            public static bool SetCustomRes(ref int __0, ref int __1, ref BootOption.WindowMode __2)
-            {
-                var fullscreenMode = iWindowMode.Value switch
-                {
-                    1 => BootOption.WindowMode.FullScreen,
-                    2 => BootOption.WindowMode.Borderless,
-                    3 => BootOption.WindowMode.Window,
-                    _ => BootOption.WindowMode.FullScreen,
-                };
-
-                Log.LogInfo($"Original resolution is {__0}x{__1}. Fullscreen = {__2}.");
-
-                __0 = (int)fDesiredResolutionX.Value;
-                __1 = (int)fDesiredResolutionY.Value;
-                __2 = fullscreenMode;
-
-                Log.LogInfo($"Custom resolution set to {__0}x{__1}. Fullscreen = {__2}.");
-                return true;
-            }
+            Harmony.CreateAndPatchAll(typeof(ControllerPatch));
         }
 
-
-        [HarmonyPatch]
-        public class ControllerPatch
-        {
-            // Spoof RF5's steam input controller type
-            [HarmonyPatch(typeof(RF5SteamInput.SteamInputManager), nameof(RF5SteamInput.SteamInputManager.GetConnectingControllerType))]
-            [HarmonyPostfix]
-            public static void Glyphy(RF5SteamInput.SteamInputManager __instance, ref RF5SteamInput.SteamInputManager.ControllerType __result)
-            {
-                var controllerType = sControllerType.Value switch
-                {
-                    "Xbox" => RF5SteamInput.SteamInputManager.ControllerType.Xbox, // Yes
-                    "PS4" => RF5SteamInput.SteamInputManager.ControllerType.PS4, // Yes
-                    "PS5" => RF5SteamInput.SteamInputManager.ControllerType.PS5, // Yes
-                    "Switch" => RF5SteamInput.SteamInputManager.ControllerType.Switch, // Yes
-                    "Keyboard" => RF5SteamInput.SteamInputManager.ControllerType.Keyboard, // Nope, keyboard glyphs are loaded differently.
-                    "Max" => RF5SteamInput.SteamInputManager.ControllerType.Max, // Broken?
-                    "None" => RF5SteamInput.SteamInputManager.ControllerType.None, // Broken?
-                    "Default" => RF5SteamInput.SteamInputManager.ControllerType.Default, // Xbox (One) Glyphs
-                    _ => RF5SteamInput.SteamInputManager.ControllerType.Default,
-                };
-
-                __result = controllerType;
-            }
-        }
-
-        [HarmonyPatch]
-        public class MiscellaneousPatch
-        {
-            public static RenderTexture rt;
-
-            // Load game settings
-            [HarmonyPatch(typeof(BootSystem), nameof(BootSystem.ApplyOption))]
-            [HarmonyPostfix]
-            public static void GameSettingsOverride(BootSystem __instance)
-            {
-                // Anisotropic Filtering
-                if (iAnisotropicFiltering.Value > 0)
-                {
-                    QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
-                    Texture.SetGlobalAnisotropicFilteringLimits(iAnisotropicFiltering.Value, iAnisotropicFiltering.Value);
-                    Log.LogInfo($"Anisotropic filtering force enabled. Value = {iAnisotropicFiltering.Value}");
-                }
-
-                // Shadow Cascades
-                if (iShadowCascades.Value == 4)
-                {
-                    QualitySettings.shadowCascades = 4; // Default = 1
-                    // Need to set ShadowProjection to CloseFit or we get visual glitches at 4 cascades.
-                    QualitySettings.shadowProjection = ShadowProjection.CloseFit; // Default = StableFit
-                    Log.LogInfo($"Shadow Cascades set to {QualitySettings.shadowCascades}. ShadowProjection = CloseFit");
-                }
-                else if (iShadowCascades.Value == 2)
-                {
-                    QualitySettings.shadowCascades = 2; // Default = 1
-                    Log.LogInfo($"Shadow Cascades set to {QualitySettings.shadowCascades}");
-                }
-
-                // Shadow Distance
-                if (fShadowDistance.Value >= 1f)
-                {
-                    QualitySettings.shadowDistance = fShadowDistance.Value; // Default = 120f
-                    Log.LogInfo($"Shadow Distance set to {QualitySettings.shadowDistance}");
-                }
-
-                // LOD Bias
-                if (fLODBias.Value >= 0.1f)
-                {
-                    QualitySettings.lodBias = fLODBias.Value; // Default = 1.5f    
-                    Log.LogInfo($"LOD Bias set to {fLODBias.Value}");
-                }
-
-                // Mouse Sensitivity
-                if (bMouseSensitivity.Value)
-                {
-                    BootSystem.m_Option.MouseSensitivity = iMouseSensitivity.Value;
-                    Log.LogInfo($"Mouse sensitivity override. Value = {BootSystem.m_Option.MouseSensitivity}");
-                }
-
-                // NPC Distances
-                if (fNPCDistance.Value >= 1f)
-                {
-                    NpcSetting.ShowDistance = fNPCDistance.Value;
-                    NpcSetting.HideDistance = fNPCDistance.Value;
-                    Log.LogInfo($"NPC Distance set to {NpcSetting.ShowDistance}");
-                }
-
-                // Unity update rate
-                // TODO: Replace this with camera movement interpolation?
-                if (fUpdateRate.Value == 0) // Set update rate to screen refresh rate
-                {
-                    Time.fixedDeltaTime = (float)1 / Screen.currentResolution.refreshRate;
-                    Log.LogInfo($"fixedDeltaTime set to {(float)1} / {Screen.currentResolution.refreshRate} = {Time.fixedDeltaTime}");
-                }
-                else if (fUpdateRate.Value > 50)
-                {
-                    Time.fixedDeltaTime = (float)1 / fUpdateRate.Value;
-                    Log.LogInfo($"fixedDeltaTime set to {(float)1} / {fUpdateRate.Value} = {Time.fixedDeltaTime}");
-                }
-
-            }
-
-            // Sun & Moon | Shadow Resolution
-            [HarmonyPatch(typeof(Funly.SkyStudio.OrbitingBody), nameof(Funly.SkyStudio.OrbitingBody.LayoutOribit))]
-            [HarmonyPostfix]
-            public static void AdjustSunMoonLight(Funly.SkyStudio.OrbitingBody __instance)
-            {
-                if (iShadowResolution.Value >= 64)
-                {
-                    __instance.BodyLight.shadowCustomResolution = iShadowResolution.Value; // Default = ShadowQuality (i.e VeryHigh = 4096)
-                }
-            }
-
-            // RealtimeBakeLight | Shadow Resolution
-            [HarmonyPatch(typeof(RealtimeBakeLight), nameof(RealtimeBakeLight.Start))]
-            [HarmonyPostfix]
-            public static void AdjustLightShadow(RealtimeBakeLight __instance)
-            {
-                if (iShadowResolution.Value >= 64)
-                {
-                    __instance.Light.shadowCustomResolution = iShadowResolution.Value; // Default = ShadowQuality (i.e VeryHigh = 4096)
-                }
-            }
-
-            // Fix low res render textures
-            [HarmonyPatch(typeof(CampMenuMain), nameof(CampMenuMain.Start))]
-            [HarmonyPatch(typeof(UIMonsterNaming), nameof(UIMonsterNaming.Start))]
-            [HarmonyPostfix]
-            public static void CampRenderTextureFix(CampMenuMain __instance)
-            {
-                if (bCampRenderTextureFix.Value)
-                {
-                    if (!rt)
-                    {
-                        float DefaultAspectRatio = (float)16 / 9;
-
-                        // Render from UI camera at higher resolution and with anti-aliasing
-                        float newHorizontalRes = Mathf.Floor(Screen.currentResolution.height * DefaultAspectRatio);
-                        rt = new RenderTexture((int)newHorizontalRes, (int)Screen.currentResolution.height, 24, RenderTextureFormat.ARGB32);
-                        rt.antiAliasing = QualitySettings.antiAliasing;
-                
-                        var UICam = UIMainManager.Instance.GetComponent<Camera>(UIMainManager.AttachId.UICamera);
-                        UICam.targetTexture = rt;
-                        UICam.Render();
-
-                        Log.LogInfo($"Created new render texture for UI Camera.");
-                    }
-
-                    // Find raw images, even inactive ones
-                    // This is probably quite performance intensive.
-                    // There's probably a better way to do this.
-                    List<RawImage> rawImages = new List<RawImage>();
-                    for (int i = 0; i < SceneManager.sceneCount; i++)
-                    {
-                        var s = SceneManager.GetSceneAt(i);
-                        if (s.isLoaded)
-                        {
-                            var allGameObjects = s.GetRootGameObjects();
-                            for (int j = 0; j < allGameObjects.Length; j++)
-                            {
-                                var go = allGameObjects[j];
-                                rawImages.AddRange(go.GetComponentsInChildren<RawImage>(true));
-                            }
-                        }
-                    }
-
-                    // Find RawImages that use UICameraRenderTexture
-                    foreach (RawImage rawImage in rawImages)
-                    {
-                        if (rawImage.m_Texture.name == "UICameraRenderTexture")
-                        {
-                            rawImage.m_Texture = rt;
-                            Log.LogInfo($"Set {rawImage.gameObject.GetParent().name} texture to new high-res render texture.");
-                        }
-                    }
-                }
-            }
-
-            // Disable Hatching
-            [HarmonyPatch(typeof(MeshFadeController), nameof(MeshFadeController.OnEnable))]
-            [HarmonyPostfix]
-            public static void DisableHatching(MeshFadeController __instance)
-            {
-                if (bDisableCrossHatching.Value)
-                {
-                    // This is super hacky
-                    var meshRenderer = __instance.Renderers[0];
-                    var sketchTex = meshRenderer.material.GetTexture("_SketchTex");
-                    sketchTex.wrapMode = TextureWrapMode.Clamp;
-                }
-
-            }
-        }
+        // Run MiscellaneousPatch
+        Harmony.CreateAndPatchAll(typeof(MiscellaneousPatch));
     }
 }
