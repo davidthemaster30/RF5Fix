@@ -1,10 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>RF5Fix</AssemblyName>
     <Description>RF5 Fix</Description>
-    <Version>0.1.4</Version>
+    <Version>0.2.0</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
     <RestoreAdditionalProjectSources>
@@ -16,25 +15,25 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.*" IncludeAssets="compile" />
+    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.725" IncludeAssets="compile" />
     <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*" />
   </ItemGroup>
 
   <ItemGroup>
     <Reference Include="Assembly-CSharp">
-      <HintPath>libs\Assembly-CSharp.stripped.dll</HintPath>
+      <HintPath>libs\Assembly-CSharp.dll</HintPath>
     </Reference>
     <Reference Include="Cinemachine">
-      <HintPath>libs\Cinemachine.stripped.dll</HintPath>
+      <HintPath>libs\Cinemachine.dll</HintPath>
     </Reference>
     <Reference Include="Il2Cppmscorlib">
-      <HintPath>libs\Il2Cppmscorlib.stripped.dll</HintPath>
+      <HintPath>libs\Il2Cppmscorlib.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>libs\UnityEngine.CoreModule.stripped.dll</HintPath>
+      <HintPath>libs\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.UI">
-      <HintPath>libs\UnityEngine.UI.stripped.dll</HintPath>
+      <HintPath>libs\UnityEngine.UI.dll</HintPath>
     </Reference>
   </ItemGroup>
 </Project>
