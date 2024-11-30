@@ -20,14 +20,14 @@ public class RF5FixPlugin : BasePlugin
 
     public override void Load()
     {
-        Log.LogInfo($"Plugin {PLUGIN_NAME} is loaded!");
-
         GeneralPatches.LoadConfig(Config);
         MiscellaneousPatch.LoadConfig(Config);
         FOVPatch.LoadConfig(Config);
         ControllerPatch.LoadConfig(Config);
         CustomResolutionPatch.LoadConfig(Config);
         UltrawidePatches.LoadConfig(Config);
+
+        Log.LogInfo($"Plugin {PLUGIN_NAME} is loaded!");
 
         Harmony.CreateAndPatchAll(typeof(CustomResolutionPatch));
         Harmony.CreateAndPatchAll(typeof(UltrawidePatches));
