@@ -3,6 +3,7 @@
     <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>RF5Fix</AssemblyName>
     <Description>RF5 Fix</Description>
+    <Product>RF5Fix</Product>
     <Company>https://github.com/davidthemaster30/RF5Fix</Company>
     <Version>1.0.1</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
