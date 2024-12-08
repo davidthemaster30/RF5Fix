@@ -27,7 +27,7 @@ public class RF5FixPlugin : BasePlugin
     {
         Log.LogInfo($"Plugin {MyPluginInfo.PLUGIN_NAME} {MyPluginInfo.PLUGIN_VERSION} is loading!");
 
-        LoadConfig()
+        LoadConfig();
 
         Harmony.CreateAndPatchAll(typeof(CustomResolutionPatch));
         Harmony.CreateAndPatchAll(typeof(UltrawidePatches));
