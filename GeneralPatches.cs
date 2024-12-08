@@ -64,12 +64,15 @@ internal static class GeneralPatches
         [HarmonyPostfix]
         internal static void DisableHatching(MeshFadeController __instance)
         {
-            if (DisableCrossHatching.Value)
+            if (DisableCrossHatching.Value && __instance is not null && __instance.Renderers.Count > 0)
             {
                 // This is super hacky
                 var meshRenderer = __instance.Renderers[0];
                 var sketchTex = meshRenderer.material.GetTexture("_SketchTex");
-                sketchTex.wrapMode = TextureWrapMode.Clamp;
+                if (sketchTex is not null)
+                {
+                    sketchTex.wrapMode = TextureWrapMode.Clamp;
+                }
             }
         }
     }
