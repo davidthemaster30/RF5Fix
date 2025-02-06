@@ -96,7 +96,7 @@ internal static class GeneralPatches
         {
             if (LowResMenuFix.Value)
             {
-                if (rt is null)
+                if (rt is null || !rt)
                 {
                     // Render from UI camera at higher resolution and with anti-aliasing
                     float newHorizontalRes = Mathf.Floor(Screen.currentResolution.height * AspectRatio.DefaultAspectRatio);
