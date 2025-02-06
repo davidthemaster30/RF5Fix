@@ -64,15 +64,22 @@ internal static class GeneralPatches
         [HarmonyPostfix]
         internal static void DisableHatching(MeshFadeController __instance)
         {
-            if (DisableCrossHatching.Value && __instance is not null && __instance.Renderers.Count > 0)
+            try
             {
-                // This is super hacky
-                var meshRenderer = __instance.Renderers[0];
-                var sketchTex = meshRenderer.material.GetTexture("_SketchTex");
-                if (sketchTex is not null)
+                if (DisableCrossHatching.Value && __instance is not null && __instance.Renderers?.Count > 0)
                 {
-                    sketchTex.wrapMode = TextureWrapMode.Clamp;
+                    // This is super hacky
+                    var meshRenderer = __instance.Renderers[0];
+                    var sketchTex = meshRenderer?.material?.GetTexture("_SketchTex");
+                    if (sketchTex is not null)
+                    {
+                        sketchTex.wrapMode = TextureWrapMode.Clamp;
+                    }
                 }
+            }
+            catch (Exception e)
+            {
+                RF5FixPlugin.Log.LogError($"Error with Hatching for {__instance.name}:{e}");
             }
         }
     }
