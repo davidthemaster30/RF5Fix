@@ -5,7 +5,7 @@
     <Description>RF5 Fix</Description>
     <Product>RF5Fix</Product>
     <Company>https://github.com/davidthemaster30/RF5Fix</Company>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
     <RestoreAdditionalProjectSources>
